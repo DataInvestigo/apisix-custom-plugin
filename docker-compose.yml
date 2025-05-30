@@ -34,6 +34,17 @@ services:
     networks:
       apisix:
 
+  apisix-setup:
+    image: curlimages/curl:latest
+    depends_on:
+      - apisix
+    volumes:
+      - ./setup_apisix.sh:/setup_apisix.sh
+    command: ["sh", "/setup_apisix.sh"]
+    networks:
+      apisix:
+    restart: "no" # Run once and exit
+
 networks:
   apisix:
     driver: bridge
