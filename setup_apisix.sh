@@ -46,9 +46,58 @@ echo -e "\nTest upstream route setup complete."
 
 echo "APISIX configuration applied."
 
-# Test the route
-echo "Testing the route http://apisix:9080/test-upstream/get..."
+# 3. Create/Update File Proxy Route
+echo "Setting up file-proxy-route..."
+curl -s -X PUT "${ADMIN_API_BASE_URL}/routes/file-proxy-route" \
+-H "X-API-KEY: ${API_KEY}" \
+-H "Content-Type: application/json" \
+-d '{
+    "name": "File Proxy Route",
+    "uri": "/serve-file",
+    "plugins": {
+        "file-proxy": {
+            "path": "/usr/local/apisix/static_content/test_file.txt"
+        }
+    }
+}'
+echo -e "\nFile proxy route setup complete."
+
+
+# Test the upstream route
+echo "Testing the upstream route http://apisix:9080/test-upstream/get..."
 # Wait a couple of seconds for changes to propagate
 sleep 3
-curl -s -i http://apisix:9080/test-upstream/get
-echo -e "\nTest complete. Check the output above. You should see a response from httpbin.org."
+curl -s -i http://apisix:9080/test-upstream/get # Ensure this uses apisix
+echo -e "\nUpstream test complete. Check the output above. You should see a response from httpbin.org."
+
+# Test the file-proxy route
+echo "Testing the file-proxy route http://apisix:9080/serve-file..."
+sleep 1 # Allow a moment for the new route to be active
+FILE_CONTENT_TEST=$(curl -s http://apisix:9080/serve-file) # Ensure this uses apisix
+
+# Hardcode the expected content to avoid issues with cat and volume mounts
+EXPECTED_CONTENT="Hello from the file-proxy plugin!
+This is a test file."
+
+echo "Response from /serve-file:"
+echo "${FILE_CONTENT_TEST}"
+
+# Trim trailing newline from FILE_CONTENT_TEST for robust comparison if curl adds one and file doesn't have it
+# However, the test file *does* have a trailing newline.
+# Let's ensure EXPECTED_CONTENT also has one if the file does.
+# The file content is:
+# Hello from the file-proxy plugin!
+# This is a test file.
+# (newline here)
+# So the string should be (matching command substitution behavior, which strips the final newline):
+EXPECTED_CONTENT="Hello from the file-proxy plugin!
+This is a test file." # NO trailing newline here in the string value
+
+if [ "${FILE_CONTENT_TEST}" = "${EXPECTED_CONTENT}" ]; then
+    echo -e "\nFile-proxy plugin test: SUCCESS - Content matches."
+else
+    echo -e "\nFile-proxy plugin test: FAILED - Content does NOT match."
+    echo "Expected:"
+    echo "${EXPECTED_CONTENT}"
+fi
+echo -e "\nAll tests complete."
